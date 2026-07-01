@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 10,
+      "memory": 1024
+    }
+  },
+  "env": {
+    "API_KEY": "runzyt2026rowr",
+    "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/...",
+    "MONGODB_URI": "mongodb+srv://dbUserRunzyWuo9838fiw:<db_password>@runzy.ycekqkf.mongodb.net/?appName=runzy",
+    "DB_NAME": "keylog",
+    "COLLECTION_NAME": "logs"
+  }
+}

