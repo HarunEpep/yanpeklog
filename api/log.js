@@ -151,7 +151,7 @@ async function sendToDiscord(log) {
         description: 'CAIRR💸 njir',
         color: 16776960,
         footer: {
-            text: `ID: ${log.id} | Supabase + Vercel`
+            text: `ID: ${log.id}`
         },
         timestamp: log.timestamp,
         fields: [
