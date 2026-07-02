@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 10,
+      "memory": 1024
+    }
+  },
   "headers": [
     {
       "source": "/api/(.*)",
